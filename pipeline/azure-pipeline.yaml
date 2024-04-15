@@ -1,0 +1,22 @@
+trigger: none
+pr: none
+variables:
+  - template: /pipeline/azure-vars.yaml
+
+stages:
+  - stage: dev
+    displayName: dev
+    jobs:
+      - deployment: dev
+        variables:
+          - template: /pipeline/azure-vars.yaml
+          - group: Token
+        displayName: deploy app into App Services
+        pool:
+          vmImage: ubuntu-latest
+        environment: dev-$(projectName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: /pipeline/azure-steps.yaml

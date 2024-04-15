@@ -1,0 +1,11 @@
+variables:
+  projectName: backstage
+  configurationFile: app-config.yaml
+  imageTag: latest
+  ServiceConnection: ACR-BACKSTAGE
+  acrloginservername: backstagedemo1acr.azurecr.io
+  env: dev
+  connection: AzureRM
+  appServiceConnection: APP-SERVICE-BACKSTAGE
+  containerType: webAppContainer
+  applicationName: backstage-demo1

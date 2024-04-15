@@ -1,0 +1,67 @@
+steps:
+  - checkout: self
+  
+  - task: DownloadSecureFile@1
+    name: keystore # The name with which to reference the secure file's path on the agent, like $(keystore.secureFilePath)
+    inputs:
+      secureFile: client-identity.p12
+
+  - script: cp $(keystore.secureFilePath) $(System.DefaultWorkingDirectory)
+    displayName: 'moving client-identity.p12 into the Dockerfile context'
+
+  - task: Bash@3
+    continueOnError: false
+    displayName: "Secret update"
+    inputs:
+      targetType: 'inline'
+      script: |
+           cd $(System.DefaultWorkingDirectory)
+           sed -i "s/PAT_TOKEN/$(BACKSTAGE-TOKEN)/" "$(configurationFile)"
+
+  - task: NodeTool@0
+    displayName: 'Use Node 18.x'
+    inputs:
+        versionSpec: 18.x
+
+  - bash: |
+      npm install yarn -g
+      yarn add @backstage/cli -W
+      yarn build:all
+      docker build . -f packages/backend/Dockerfile -t $(projectName):$(imageTag)
+      docker images 
+    displayName: 'Run Build and generate docker image' 
+
+  - task: Docker@2
+    displayName: 'ReTag Image with ACR Name - BuildId'
+    inputs:
+      containerRegistry: $(ServiceConnection) # This comes from the Service Connections
+      repository: '$(projectName)'
+      command: tag
+      arguments: '$(projectName):$(imageTag) $(acrloginservername)/$(projectName)-$(env):$(Build.BuildNumber)'
+
+  - task: Docker@2
+    displayName: 'Promoting app container image to $(env) environment'
+    inputs:
+      containerRegistry: $(ServiceConnection)
+      repository: '$(projectName)-$(env)'
+      command: push
+      tags: $(Build.BuildNumber)
+
+  - task: AzureRmWebAppDeployment@4
+    displayName: Deploy application in App Services
+    continueOnError: true
+    inputs:
+      ConnectionType: '$(connection)'
+      azureSubscription: '$(appServiceConnection)'
+      appType: '$(containerType)'
+      WebAppName: '$(applicationName)'
+      # deployToSlotOrASE: true
+      # ResourceGroupName: '$(Appresourcegroup)'
+      # SlotName: '$(env)'      
+      DockerNamespace: '$(acrloginservername)'
+      DockerRepository: '$(projectName)-$(env)'
+      DockerImageTag: '$(Build.BuildNumber)'
+      StartupCommand: 'yarn start && yarn start-backend'  
+ 
+  
+  
